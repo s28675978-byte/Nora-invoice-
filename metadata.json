@@ -1,0 +1,6 @@
+{
+  "name": "Nora Invoice App",
+  "description": "Smart parsing ledger and receipt generator for Nora signboard businesses in Riyadh, Saudi Arabia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

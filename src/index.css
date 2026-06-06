@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@media print {
+  /* Hide typical high-level components with display:none to prevent layout leakage and extra pages */
+  header,
+  .no-print,
+  button,
+  .toastMessage,
+  .fixed {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Force print target visible */
+  body * {
+    visibility: hidden;
+  }
+
+  #printable-invoice-ledger,
+  #printable-invoice-ledger * {
+    visibility: visible !important;
+  }
+
+  /* Absolute position layout fit for the paper page */
+  #printable-invoice-ledger {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Force background graphics to color-adjust correctly for header banner and tabular rows */
+  #printable-invoice-ledger .bg-blue-800 {
+    background-color: #1e40af !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  #printable-invoice-ledger .bg-slate-200 {
+    background-color: #e2e8f0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  #printable-invoice-ledger .bg-slate-50 {
+    background-color: #f8fafc !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Force Desktop layout rendering on the print container (hides mobile list, shows full printable table grid) */
+  #printable-invoice-ledger .sm\:block {
+    display: block !important;
+  }
+  #printable-invoice-ledger .block.sm\:hidden {
+    display: none !important;
+  }
+
+  /* Strip edit inputs from print forms so they look like flat text with solid black coloring */
+  input {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    color: #000000 !important;
+    font-weight: bold !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+  }
+
+  /* Document page specifications */
+  @page {
+    size: auto;
+    margin: 1.5cm 1cm 1.5cm 1cm;
+  }
+}
