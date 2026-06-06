@@ -23,6 +23,25 @@ import {
 import { CustomerFolder, Invoice, InvoiceItem } from "./types";
 import { drawInvoiceReceipt, exportInvoiceToPDF } from "./canvasHelper";
 
+// Helper to convert dataURL to Blobs for stable Chrome/Safari downloads particularly on mobile/local environments
+const dataURLtoBlob = (dataurl: string): Blob => {
+  try {
+    const parts = dataurl.split(",");
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch (err) {
+    console.error("Failed to convert dataURL to blob", err);
+    throw err;
+  }
+};
+
 export default function App() {
   // State
   const [folders, setFolders] = useState<CustomerFolder[]>([]);
@@ -30,6 +49,10 @@ export default function App() {
   const [activeInvoice, setActiveInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // States for reliable visual download assistance and previews
+  const [downloadPreviewUrl, setDownloadPreviewUrl] = useState<string | null>(null);
+  const [downloadFileType, setDownloadFileType] = useState<"jpg" | "pdf">("jpg");
 
   // App UI Navigation
   const [view, setView] = useState<"folders" | "invoice">("folders");
@@ -906,13 +929,29 @@ export default function App() {
     if (!activeInvoice) return;
     try {
       const dataUrl = drawInvoiceReceipt(activeInvoice, activeInvoice.calculations.total_balance);
-      const link = document.createElement("a");
-      link.href = dataUrl;
-      link.download = `NoraInvoice_${activeInvoice.customer_name.replace(/\s+/g, "_")}_${activeInvoice.date.replace(/\//g, "-")}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showToast("High Resolution Invoice Image downloaded successfully!");
+      
+      // Open the visual support preview modal
+      setDownloadPreviewUrl(dataUrl);
+      setDownloadFileType("jpg");
+
+      // Try file-saver download via Blob (maximizes compatibility across modern web layouts)
+      try {
+        const blob = dataURLtoBlob(dataUrl);
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = `NoraInvoice_${activeInvoice.customer_name.replace(/\s+/g, "_")}_${activeInvoice.date.replace(/\//g, "-")}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }, 300);
+        showToast("রসিদের ছবি তৈরি হয়েছে এবং ডাউনলোড শুরু হয়েছে!");
+      } catch (e) {
+        console.warn("Direct blob download failed, showing visual fallback", e);
+        showToast("রসিদের ছবি প্রিভিউতে প্রস্তুত আছে! অনুগ্রহ করে চেপে ধরে সেভ করুন।");
+      }
     } catch (err) {
       console.error(err);
       showToast("Error: Failed to render invoice snapshot card.");
@@ -923,8 +962,15 @@ export default function App() {
   const handleDownloadPDF = () => {
     if (!activeInvoice) return;
     try {
+      const imgDataUrl = drawInvoiceReceipt(activeInvoice, activeInvoice.calculations.total_balance);
+      
+      // Show support modal so mobile/webview users have an alternative save/share method
+      setDownloadPreviewUrl(imgDataUrl);
+      setDownloadFileType("pdf");
+
+      // Trigger standard PDF generator download
       exportInvoiceToPDF(activeInvoice, activeInvoice.calculations.total_balance);
-      showToast("Official high-fidelity PDF Invoice downloaded successfully!");
+      showToast("PDF ফাইল প্রস্তুত করা হয়েছে!");
     } catch (err) {
       console.error(err);
       showToast("Error: Failed to render official PDF Invoice.");
@@ -974,8 +1020,17 @@ export default function App() {
         <div className="absolute right-0 top-0 w-64 h-32 bg-gradient-to-l from-green-500/20 to-transparent blur-2xl pointer-events-none" />
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-white/15 rounded-xl border border-white/25">
-              <span className="font-bold text-2xl tracking-tight text-white block leading-none">ن</span>
+            <div className="relative w-14 h-14 flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-950 rounded-2xl border-2 border-emerald-500/40 hover:border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all duration-300 group overflow-hidden">
+              {/* Subtle background decorative pulse grid */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(52,211,153,0.15)_0,transparent_100%)] pointer-events-none" />
+              {/* Outer soft glowing neon ring */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-500 pointer-events-none" />
+              
+              {/* Calligraphic letter "ن" (Noon) with polished shadow and gold glowing center */}
+              <span className="relative font-bold text-3xl text-emerald-400 filter drop-shadow-[0_2px_8px_rgba(52,211,153,0.7)] group-hover:scale-115 transition-transform duration-300 select-none block leading-none">ن</span>
+              
+              {/* Elegant golden active indicator dot matching the Calligraphy theme */}
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-yellow-400 rounded-full shadow-[0_0_8px_#facc15]" />
             </div>
             <div>
               <h1 className="font-display font-bold text-2xl tracking-tight text-white leading-none">Nora Invoice Pro</h1>
@@ -1366,82 +1421,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
-            {/* Global Actions Control Bar - Always visible & prominent */}
-            <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-5 max-w-2xl mx-auto shadow-xl space-y-4 no-print">
-              <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
-                <span className="text-xs font-bold text-slate-300 font-display uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Invoice Controls / বিলের অপশনসমূহ</span>
-                </span>
-                <span className="text-[10px] font-mono text-slate-400 bg-slate-900/60 px-2.5 py-1 rounded-full border border-slate-800/80">
-                  Highly Visible Control
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={handleSaveInvoice}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-3 rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2 text-xs border border-emerald-500 hover:shadow-emerald-500/10"
-                >
-                  <CheckCircle className="w-4 h-4 shrink-0" />
-                  <span>Save Invoice (বিল সেভ করুন)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleNewInvoice(selectedFolder)}
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-3 rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2 text-xs border border-blue-500 hover:shadow-blue-500/10"
-                >
-                  <Plus className="w-4 h-4 shrink-0" />
-                  <span>New Invoice (নতুন বিল)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSendWhatsApp}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 px-3 rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2 text-xs border border-green-500 hover:shadow-green-500/10"
-                >
-                  <Send className="w-4 h-4 shrink-0" />
-                  <span>Send WhatsApp</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadJPG}
-                  className="bg-sky-600 hover:bg-sky-550 text-white font-bold py-3.5 px-3 rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2 text-xs border border-sky-500 hover:shadow-sky-500/10"
-                >
-                  <Download className="w-4 h-4 shrink-0" />
-                  <span>JPG Option</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadPDF}
-                  className="bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 px-3 rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2 text-xs border border-rose-500 hover:shadow-rose-500/10"
-                >
-                  <FileText className="w-4 h-4 shrink-0" />
-                  <span>Download PDF</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handlePrintInvoice}
-                  className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-3.5 px-3 rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2 text-xs border border-slate-500 hover:shadow-slate-550/10"
-                >
-                  <Printer className="w-4 h-4 shrink-0" />
-                  <span>Print Invoice</span>
-                </button>
-              </div>
-
-              <div className="bg-slate-900/40 p-2.5 rounded-xl flex items-center justify-between text-[11px] font-mono text-slate-350 border border-slate-750/50">
-                <span>Active Invoice Balance:</span>
-                <span className={`font-bold ${activeInvoice.calculations.total_balance > 0 ? "text-rose-400" : "text-emerald-400"}`}>
-                  {activeInvoice.calculations.total_balance} sr
-                </span>
-              </div>
-            </div>
 
             {/* Simulated Desktop Invoice Voucher sheet */}
             <div id="printable-invoice-ledger" className="bg-white text-slate-900 rounded-2xl shadow-2xl overflow-hidden border-2 border-slate-300 max-w-2xl mx-auto">
@@ -1911,6 +1890,90 @@ export default function App() {
                   }`}
                 >
                   {confirmModal.confirmText}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {downloadPreviewUrl && (
+          <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-[120] no-print overflow-y-auto">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-4 md:p-6 shadow-2xl space-y-4 my-8"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                  <h4 className="font-display font-bold text-base text-white flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-amber-400" />
+                    <span>রসিদ প্রিভিউ ও ডাউনলোড সহায়তা</span>
+                  </h4>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    {downloadFileType === "jpg" ? "High Resolution Image format" : "Official PDF format preview"}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setDownloadPreviewUrl(null)}
+                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-white transition flex items-center justify-center text-sm cursor-pointer"
+                  title="Close preview"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Special instruction callout */}
+              <div className="bg-amber-950/40 border border-amber-900/40 rounded-xl p-3.5 text-[11px] font-sans leading-relaxed text-amber-200">
+                <span className="font-bold text-xs text-amber-300 block mb-1">💡 মোবাইল বা ব্রাউজারে ডাউনলোড না হলে:</span>
+                নিচের রসিদটির ছবির ওপর <span className="underline font-bold text-white">চেপে ধরে রাখুন (Long Press)</span> এবং <span className="underline font-bold text-white">'Save Image' বা 'Download Image'</span> এ ক্লিক করে আপনার ফোনে সেভ করে নিন। এরপর সরাসরি হোয়াটসঅ্যাপে ক্রেতাকে পাঠাতে পারবেন।
+              </div>
+
+              {/* Renders real Image for Long Press Save */}
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-850 flex flex-col items-center justify-center max-h-[480px] overflow-y-auto">
+                <img 
+                  src={downloadPreviewUrl} 
+                  alt="Nora Invoice Receipt Preview" 
+                  className="max-h-[440px] w-auto h-auto object-contain rounded border border-slate-700 select-all"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+
+              {/* Action options */}
+              <div className="grid grid-cols-2 gap-3 pt-2 font-mono text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Try to trigger safe download once more
+                    try {
+                      const blob = dataURLtoBlob(downloadPreviewUrl);
+                      const blobUrl = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = blobUrl;
+                      link.download = `NoraInvoice_${activeInvoice?.customer_name.replace(/\s+/g, "_") || "File"}.jpg`;
+                      document.body.appendChild(link);
+                      link.click();
+                      setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(blobUrl);
+                      }, 300);
+                      showToast("ডাউনলোড পুনরায় চেষ্টা করা করা হয়েছে!");
+                    } catch (e) {
+                      showToast("ছবিটির ওপর চেপে ধরে সেভ করুন।");
+                    }
+                  }}
+                  className="px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Try Download</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDownloadPreviewUrl(null)}
+                  className="px-4 py-3 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-xl text-slate-300 transition cursor-pointer text-center font-bold"
+                >
+                  Close (বন্ধ করুন)
                 </button>
               </div>
             </motion.div>
